@@ -3,30 +3,31 @@ extern crate serialport;
 
 use std::io;
 use std::time::Instant;
-use std::sync::mpsc::{SyncSender, Receiver};
-use std::sync::mpsc;
+use std::sync::atomic::{AtomicIsize, Ordering};
+use std::sync::Arc;
 use std::thread;
 
 
 fn main() {
     let mut pr = PortReader::new("/dev/cu.usbmodem1411");
-    let (tx, rx): (SyncSender<i32>, Receiver<i32>) = mpsc::sync_channel(1);
+    // let (tx, rx): (SyncSender<i32>, Receiver<i32>) = mpsc::sync_channel(1);
+    let sensor_value = Arc::new(AtomicIsize::new(1));
+    let sensor_clone = sensor_value.clone();
     thread::spawn(move || {
-        for i in 0..10000 {
-            if let Ok(_) = tx.try_send(i) {
-                continue;
-            }
+        loop {
+            let value = pr.read_value();
+            sensor_clone.store(value as isize, Ordering::Relaxed);
         }
     });
 
     loop {
-        let mut now = Instant::now();
-        if let Ok(val) = rx.recv() {
-            println!("{:?}", val);
-        } else {
-            println!("byeeeee!");
-            break;
-        }
+        // let mut now = Instant::now();
+        let val = sensor_value.load(Ordering::Relaxed);
+        println!("{:?}", val);
+        // else {
+        //     println!("byeeeee!");
+        //     // break;
+        // }
     }
 }
 
